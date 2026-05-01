@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IB History — Spaced Repetition</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:wght@300;400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --card: #1c2433;
+    --card-hover: #202b3d;
+    --border: #2a3547;
+    --gold: #d4a853;
+    --gold-dim: #8a6930;
+    --red: #e05555;
+    --green: #4caf7d;
+    --blue: #5b8fd4;
+    --purple: #9b7fdb;
+    --text: #e2d9c8;
+    --text-dim: #8a9ab5;
+    --text-muted: #4a5568;
+    --correct: #2d5a3d;
+    --correct-border: #4caf7d;
+    --wrong: #5a2d2d;
+    --wrong-border: #e05555;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    min-height: 100vh;
+    line-height: 1.7;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Layout ── */
+  .app { max-width: 860px; margin: 0 auto; padding: 0 20px 80px; }
+
+  /* ── Header ── */
+  header {
+    padding: 40px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 36px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .logo {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--gold), #b8862e);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  header p { font-size: 0.85rem; color: var(--text-dim); margin-top: 2px; }
+
+  .back-btn {
+    margin-left: auto;
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); padding: 8px 16px; border-radius: 8px;
+    cursor: pointer; font-size: 0.85rem; font-family: inherit;
+    transition: all 0.2s; display: none;
+  }
+  .back-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .back-btn.visible { display: block; }
+
+  /* ── Home: Stats bar ── */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 36px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .stat-card .num {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem; font-weight: 700;
+    color: var(--gold); line-height: 1;
+  }
+  .stat-card .label { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ── Deck Grid ── */
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.8rem; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  .decks { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .deck-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px 24px;
+    cursor: pointer; transition: all 0.25s;
+    position: relative; overflow: hidden;
+  }
+  .deck-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--accent, var(--gold));
+    border-radius: 14px 0 0 14px;
+  }
+  .deck-card:hover { background: var(--card-hover); border-color: var(--accent, var(--gold)); transform: translateY(-1px); }
+  .deck-card .icon { font-size: 1.6rem; margin-bottom: 10px; }
+  .deck-card h3 { font-family: 'Playfair Display', serif; font-size: 1.05rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .deck-card p { font-size: 0.8rem; color: var(--text-dim); }
+  .deck-meta { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .deck-meta .count { font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .progress-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; }
+  .progress-fill { height: 100%; border-radius: 2px; background: var(--accent, var(--gold)); transition: width 0.4s; }
+  .due-badge {
+    position: absolute; top: 14px; right: 14px;
+    background: var(--gold); color: #000;
+    font-size: 0.7rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Session View ── */
+  #session-view { display: none; }
+
+  .session-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px;
+  }
+  .session-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 600; }
+  .session-progress-bar {
+    flex: 1; height: 6px; background: var(--border); border-radius: 3px;
+  }
+  .session-progress-fill { height: 100%; border-radius: 3px; background: var(--gold); transition: width 0.4s; }
+  .session-count { font-size: 0.8rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+
+  /* ── Question Card ── */
+  .q-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 36px 40px;
+    margin-bottom: 20px;
+    min-height: 200px;
+    position: relative;
+  }
+  .q-tag {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--gold); font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 14px;
+  }
+  .q-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.35rem; font-weight: 400;
+    line-height: 1.55; color: var(--text);
+  }
+  .q-hint {
+    margin-top: 12px; font-size: 0.83rem; color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* ── Answer Options ── */
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .option-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 14px 18px;
+    border-radius: 12px; cursor: pointer;
+    font-family: 'Source Serif 4', serif; font-size: 0.9rem;
+    text-align: left; transition: all 0.2s; line-height: 1.4;
+  }
+  .option-btn:hover:not(:disabled) { background: var(--card-hover); border-color: var(--gold); }
+  .option-btn.correct { background: var(--correct); border-color: var(--correct-border); color: #fff; }
+  .option-btn.wrong { background: var(--wrong); border-color: var(--wrong-border); color: #fff; }
+  .option-btn:disabled { cursor: default; }
+  .option-letter {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    color: var(--text-muted); display: block; margin-bottom: 2px;
+  }
+
+  /* ── Feedback ── */
+  .feedback {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 24px;
+    margin-bottom: 20px; display: none;
+  }
+  .feedback.correct-fb { border-color: var(--correct-border); }
+  .feedback.wrong-fb { border-color: var(--wrong-border); }
+  .feedback-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+  .feedback.correct-fb .feedback-title { color: var(--green); }
+  .feedback.wrong-fb .feedback-title { color: var(--red); }
+  .feedback-text { font-size: 0.88rem; color: var(--text-dim); line-height: 1.6; }
+
+  /* ── Rating Buttons ── */
+  .rating-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .rating-btn {
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); padding: 10px 22px; border-radius: 10px;
+    cursor: pointer; font-family: 'Source Serif 4', serif;
+    font-size: 0.88rem; font-weight: 600;
+    transition: all 0.2s; display: none;
+  }
+  .rating-btn.again { border-color: var(--red); color: var(--red); }
+  .rating-btn.again:hover { background: var(--wrong); }
+  .rating-btn.good { border-color: var(--green); color: var(--green); }
+  .rating-btn.good:hover { background: var(--correct); }
+  .rating-btn.easy { border-color: var(--blue); color: var(--blue); }
+  .rating-btn.easy:hover { background: #1a2b45; }
+  .rating-btn.visible { display: block; }
+
+  /* ── Results ── */
+  #results-view {
+    display: none; text-align: center; padding: 60px 20px;
+  }
+  .result-icon { font-size: 4rem; margin-bottom: 20px; }
+  .result-title { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 8px; }
+  .result-sub { color: var(--text-dim); font-size: 0.95rem; margin-bottom: 36px; }
+  .result-stats { display: flex; justify-content: center; gap: 40px; margin-bottom: 40px; }
+  .result-stat .n { font-size: 2.5rem; font-family: 'Playfair Display', serif; font-weight: 700; }
+  .result-stat .l { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .result-stat.g .n { color: var(--green); }
+  .result-stat.r .n { color: var(--red); }
+  .btn-primary {
+    background: var(--gold); color: #000;
+    border: none; padding: 14px 36px; border-radius: 10px;
+    font-family: 'Source Serif 4', serif; font-size: 1rem; font-weight: 600;
+    cursor: pointer; transition: opacity 0.2s; margin: 6px;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-secondary {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); padding: 14px 36px; border-radius: 10px;
+    font-family: 'Source Serif 4', serif; font-size: 1rem;
+    cursor: pointer; transition: all 0.2s; margin: 6px;
+  }
+  .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── Mode Toggle ── */
+  .mode-toggle {
+    display: flex; gap: 8px; margin-bottom: 28px;
+  }
+  .mode-btn {
+    flex: 1; padding: 12px 18px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); cursor: pointer;
+    font-family: 'Source Serif 4', serif; font-size: 0.88rem;
+    font-weight: 600; transition: all 0.2s; text-align: center;
+  }
+  .mode-btn:hover { border-color: var(--gold); color: var(--text); }
+  .mode-btn.active { background: var(--card); border-color: var(--gold); color: var(--gold); }
+  .mode-btn .mode-icon { font-size: 1.1rem; display: block; margin-bottom: 3px; }
+  .mode-btn .mode-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ── Short Answer ── */
+  .sa-wrap { margin-bottom: 20px; }
+  .sa-textarea {
+    width: 100%; min-height: 110px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 20px;
+    color: var(--text); font-family: 'Source Serif 4', serif;
+    font-size: 1rem; line-height: 1.6; resize: vertical;
+    transition: border-color 0.2s; outline: none;
+  }
+  .sa-textarea:focus { border-color: var(--gold); }
+  .sa-textarea:disabled { opacity: 0.6; cursor: default; }
+  .sa-footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .sa-submit {
+    background: var(--gold); color: #000; border: none;
+    padding: 12px 28px; border-radius: 10px; cursor: pointer;
+    font-family: 'Source Serif 4', serif; font-size: 0.92rem; font-weight: 700;
+    transition: opacity 0.2s; flex-shrink: 0;
+  }
+  .sa-submit:hover:not(:disabled) { opacity: 0.85; }
+  .sa-submit:disabled { opacity: 0.4; cursor: default; }
+  .sa-hint { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+
+  /* ── AI Grading State ── */
+  .sa-loading {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 20px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px;
+    margin-bottom: 20px; display: none;
+  }
+  .sa-loading.visible { display: flex; }
+  .spinner {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--gold);
+    animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sa-loading-text { font-size: 0.85rem; color: var(--text-dim); }
+
+  /* ── AI Feedback ── */
+  .ai-feedback {
+    border-radius: 14px; padding: 22px 24px;
+    margin-bottom: 20px; display: none;
+    border: 1px solid var(--border);
+  }
+  .ai-feedback.visible { display: block; }
+  .ai-feedback.grade-full { background: var(--correct); border-color: var(--correct-border); }
+  .ai-feedback.grade-partial { background: #2d3a1a; border-color: #7a9e3a; }
+  .ai-feedback.grade-wrong { background: var(--wrong); border-color: var(--wrong-border); }
+  .ai-grade-label {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; margin-bottom: 8px;
+  }
+  .grade-full .ai-grade-label { color: var(--green); }
+  .grade-partial .ai-grade-label { color: #a8c84a; }
+  .grade-wrong .ai-grade-label { color: var(--red); }
+  .ai-grade-comment { font-size: 0.9rem; color: var(--text); line-height: 1.6; margin-bottom: 12px; }
+  .ai-model-answer { font-size: 0.83rem; color: var(--text-dim); line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; margin-top: 2px; }
+  .ai-model-answer strong { color: var(--text); }
+
+  @media (max-width: 600px) {
+    .decks { grid-template-columns: 1fr; }
+    .options { grid-template-columns: 1fr; }
+    .q-card { padding: 24px 22px; }
+    .q-text { font-size: 1.1rem; }
+    .stats-bar { grid-template-columns: repeat(3, 1fr); }
+    .rating-btns { justify-content: stretch; }
+    .rating-btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">📚</div>
+    <div>
+      <h1>IB History — Revision</h1>
+      <p>Spaced repetition · Your personal study companion</p>
+    </div>
+    <button class="back-btn" id="back-btn" onclick="showHome()">← Back</button>
+  </header>
+
+  <!-- HOME -->
+  <div id="home-view">
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="num" id="stat-total">0</div>
+        <div class="label">Total Cards</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="stat-due" style="color:var(--red)">0</div>
+        <div class="label">Due Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="stat-mastered" style="color:var(--green)">0</div>
+        <div class="label">Mastered</div>
+      </div>
+    </div>
+
+    <p class="section-title">Study Mode</p>
+    <div class="mode-toggle" style="margin-bottom:24px;">
+      <button class="mode-btn active" id="mode-mcq" onclick="setMode('mcq')">
+        <span class="mode-icon">🔤</span>
+        <span class="mode-label">Multiple Choice</span>
+      </button>
+      <button class="mode-btn" id="mode-sa" onclick="setMode('sa')">
+        <span class="mode-icon">✍️</span>
+        <span class="mode-label">Short Answer</span>
+      </button>
+    </div>
+
+    <p class="section-title">Choose a Deck</p>
+    <div class="decks" id="deck-grid"></div>
+  </div>
+
+  <!-- SESSION -->
+  <div id="session-view">
+    <div class="session-header">
+      <div class="session-title" id="session-title"></div>
+      <div class="session-progress-bar">
+        <div class="session-progress-fill" id="session-progress-fill" style="width:0%"></div>
+      </div>
+      <div class="session-count" id="session-count">0 / 0</div>
+    </div>
+
+    <div class="q-card">
+      <div class="q-tag" id="q-tag"></div>
+      <div class="q-text" id="q-text"></div>
+      <div class="q-hint" id="q-hint"></div>
+    </div>
+
+    <!-- MCQ options -->
+    <div class="options" id="options-grid"></div>
+
+    <!-- MCQ feedback -->
+    <div class="feedback" id="feedback-box">
+      <div class="feedback-title" id="feedback-title"></div>
+      <div class="feedback-text" id="feedback-text"></div>
+    </div>
+
+    <!-- Short Answer input -->
+    <div class="sa-wrap" id="sa-wrap" style="display:none;">
+      <textarea class="sa-textarea" id="sa-textarea" placeholder="Type your answer here…" rows="4"></textarea>
+      <div class="sa-footer">
+        <button class="sa-submit" id="sa-submit" onclick="submitShortAnswer()">Submit Answer</button>
+        <span class="sa-hint">Write what you know — AI will grade it</span>
+      </div>
+    </div>
+
+    <!-- AI grading loader -->
+    <div class="sa-loading" id="sa-loading">
+      <div class="spinner"></div>
+      <span class="sa-loading-text">Grading your answer…</span>
+    </div>
+
+    <!-- AI feedback result -->
+    <div class="ai-feedback" id="ai-feedback">
+      <div class="ai-grade-label" id="ai-grade-label"></div>
+      <div class="ai-grade-comment" id="ai-grade-comment"></div>
+      <div class="ai-model-answer" id="ai-model-answer"></div>
+    </div>
+
+    <div class="rating-btns">
+      <button class="rating-btn again" id="btn-again" onclick="rate(0)">Again ✗</button>
+      <button class="rating-btn good" id="btn-good" onclick="rate(3)">Got it ✓</button>
+      <button class="rating-btn easy" id="btn-easy" onclick="rate(4)">Easy ⚡</button>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-view">
+    <div class="result-icon" id="result-icon"></div>
+    <div class="result-title" id="result-title"></div>
+    <div class="result-sub" id="result-sub"></div>
+    <div class="result-stats">
+      <div class="result-stat g">
+        <div class="n" id="res-correct">0</div>
+        <div class="l">Correct</div>
+      </div>
+      <div class="result-stat r">
+        <div class="n" id="res-wrong">0</div>
+        <div class="l">Wrong</div>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="showHome()">← Back to Decks</button>
+    <button class="btn-secondary" onclick="confirmReset()">Reset Progress</button>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// DATA — All cards from your three documents
+// ═══════════════════════════════════════════════════
+
+const DECKS = [
+  {
+    id: 'cold-war',
+    title: 'Cold War Crises',
+    icon: '🌐',
+    accent: '#5b8fd4',
+    desc: 'Berlin Blockade, Cuban Missile Crisis, Grand Alliance',
+    cards: [
+      { q: "What did Stalin aim to achieve with the Berlin Blockade?", a: "Force the US to give up West Berlin to extend communism", opts: ["Force the US to give up West Berlin to extend communism","Prevent the formation of NATO","Destroy the West German economy","Test the US military response time"], tag: "Berlin Blockade · Causes", explain: "Stalin blockaded West Berlin hoping the US would abandon the city, allowing him to absorb it into the Soviet sphere and extend communist control." },
+      { q: "How much was the Marshall Plan worth, and what did Molotov call it?", a: "12.7 billion — 'dollar imperialism'", opts: ["12.7 billion — 'dollar imperialism'","8.3 billion — 'capitalist bribery'","20 billion — 'western aggression'","6.4 billion — 'economic warfare'"], tag: "Cold War · Origins", explain: "The Marshall Plan was worth $12.7 billion USD. Soviet foreign minister Molotov rejected it and labelled it 'dollar imperialism', claiming the US was buying influence in Europe." },
+      { q: "What does historian John Lewis Gaddis say about the US airlift during the Berlin Blockade?", a: "'Not just about supply; but also to show US is not intimidated by the USSR'", opts: ["'Not just about supply; but also to show US is not intimidated by the USSR'","'A purely humanitarian act with no political intent'","'The greatest military failure of Truman's presidency'","'An overreaction that nearly caused World War III'"], tag: "Berlin Blockade · Historian Views", explain: "Gaddis argues the airlift served a dual purpose: keeping West Berliners supplied AND demonstrating Western resolve against Soviet pressure." },
+      { q: "What does historian Armin Grünbacher say about the outcome of the Berlin Blockade?", a: "It was the 'biggest propaganda victory for the USA'", opts: ["It was the 'biggest propaganda victory for the USA'","It was a 'catastrophic mistake' by the West","It 'accelerated the division of Germany permanently'","It 'proved Soviet military superiority in Europe'"], tag: "Berlin Blockade · Historian Views", explain: "Grünbacher emphasises how the successful airlift — including the famous 'candy bombers' who dropped sweets for children — generated enormous goodwill toward the West." },
+      { q: "What does historian John Rodden emphasise about the Berlin Blockade?", a: "Many citizens migrated and idealised western ideology", opts: ["Many citizens migrated and idealised western ideology","The blockade strengthened East German loyalty to Stalin","West Berliners rejected American interference","The blockade was ultimately a draw for both sides"], tag: "Berlin Blockade · Historian Views", explain: "Rodden highlights mass migration — 2.5 million people — as evidence that the contrast between living standards in East and West Germany damaged Soviet reputation." },
+      { q: "What was the Cuban Missile Crisis?", a: "A 13-day standoff between the US and the USSR about the deployment of ICBMs in Cuba", opts: ["A 13-day standoff between the US and the USSR about the deployment of ICBMs in Cuba","A US invasion of Cuba to remove Castro from power","A naval battle between Soviet and American ships near Cuba","A secret CIA operation to assassinate Fidel Castro"], tag: "Cuban Missile Crisis · Overview", explain: "In October 1962, US spy planes (U-2) discovered Soviet ICBMs being installed in Cuba, 150km from the US mainland. The resulting 13-day standoff brought the world closest to nuclear war." },
+      { q: "What is 'brinksmanship' in Cold War context?", a: "Threatening with the worst possible outcome (MAD) to force the other side to back down", opts: ["Threatening with the worst possible outcome (MAD) to force the other side to back down","Gradually escalating military spending over time","Secretly funding proxy wars in developing nations","Refusing all diplomatic communication with the enemy"], tag: "Cold War · Concepts", explain: "Brinksmanship = going to the brink of nuclear war. Both the Berlin Blockade and the Cuban Missile Crisis involved brinksmanship — each side threatening catastrophe to force a concession." },
+      { q: "What was COMECON and why was it created?", a: "Soviet economic organisation — response to the Marshall Plan, to serve Soviet economic interests", opts: ["Soviet economic organisation — response to the Marshall Plan, to serve Soviet economic interests","A military alliance between the USSR and Warsaw Pact states","A propaganda outlet broadcasting Soviet ideology in the West","A United Nations body managing post-war reconstruction"], tag: "Cold War · Organisations", explain: "COMECON (Council for Mutual Economic Assistance) was Moscow's answer to Marshall Aid — it tied Eastern Bloc economies to Soviet interests and countered Western economic influence." },
+      { q: "What was COMINFORM?", a: "Soviet organisation for propaganda coordination in Eastern Europe", opts: ["Soviet organisation for propaganda coordination in Eastern Europe","Western intelligence alliance against Soviet espionage","International communist trade union federation","UN committee monitoring Soviet human rights"], tag: "Cold War · Organisations", explain: "COMINFORM (Communist Information Bureau) coordinated communist party propaganda and policies across Eastern Europe, countering Western influence." },
+      { q: "What were the Teheran (1943), Yalta (1945), and Potsdam (1945) conferences about?", a: "Teheran: D-Day + UN; Yalta: post-war Europe; Potsdam: reparations and Germany's future", opts: ["Teheran: D-Day + UN; Yalta: post-war Europe; Potsdam: reparations and Germany's future","All three exclusively about Germany's unconditional surrender","Teheran: Pacific strategy; Yalta: Japan; Potsdam: atom bomb","All three about dividing Africa between the Allies"], tag: "Grand Alliance · Conferences", explain: "Teheran (1943) agreed on D-Day and the UN. Yalta (1945) discussed post-war Europe. Potsdam (1945) — with Truman instead of Roosevelt — revealed deeper disagreements over reparations and Eastern Europe." },
+      { q: "What were the two agreements at Potsdam (1945)?", a: "Denazification of Germany and the Oder-Neisse line as Poland's new border", opts: ["Denazification of Germany and the Oder-Neisse line as Poland's new border","Division of Germany and reparations payments schedule","Formation of NATO and the UN Security Council","Free elections in Eastern Europe and German disarmament"], tag: "Grand Alliance · Potsdam", explain: "Despite many disagreements, the Potsdam Conference agreed on: (1) denazification of Germany and (2) using the Oder-Neisse line as Poland's new western border." },
+      { q: "What was the Partial Test Ban Treaty (1963) and why was it significant?", a: "Banned nuclear tests above ground — reduced tensions after the Cuban Missile Crisis", opts: ["Banned nuclear tests above ground — reduced tensions after the Cuban Missile Crisis","Ended the Cold War and dissolved NATO","Banned all nuclear weapons globally","Limited ICBM production to 500 per country"], tag: "Cuban Missile Crisis · Aftermath", explain: "After the Cuban Missile Crisis terrified both sides, the 1963 Partial Test Ban Treaty prohibited nuclear tests in the atmosphere, underwater, and in space — a key de-escalation step." },
+      { q: "What was the Moscow-Washington hotline and when was it established?", a: "A direct communication line between US and Soviet leaders — established after the Cuban Missile Crisis", opts: ["A direct communication line between US and Soviet leaders — established after the Cuban Missile Crisis","A secret treaty allowing covert meetings between Kennedy and Khrushchev","A UN emergency channel for nuclear crises, established 1947","A NATO surveillance network monitoring Soviet communications"], tag: "Cuban Missile Crisis · Aftermath", explain: "Historians Edward T. Russell and Graham T. Allison highlight the 'hotline' as crucial: slow, indirect communication during the crisis nearly caused disaster, so a direct line was created." },
+      { q: "What was the Bay of Pigs (1961)?", a: "A failed CIA-backed invasion of Cuba using Cuban exiles to overthrow Castro", opts: ["A failed CIA-backed invasion of Cuba using Cuban exiles to overthrow Castro","A US naval blockade of Cuba during the missile crisis","A Soviet submarine attack on US ships in the Caribbean","A successful CIA operation to monitor Soviet missiles"], tag: "Cuban Missile Crisis · Context", explain: "The CIA trained and equipped Cuban exiles to invade Cuba and remove Castro. The operation failed disastrously, embarrassing Kennedy and pushing Cuba closer to the USSR." },
+      { q: "What role did the Space Race play in Cold War tensions?", a: "Sputnik (1957) and NASA (1958) intensified the arms race and ideological competition for technological supremacy", opts: ["Sputnik (1957) and NASA (1958) intensified the arms race and ideological competition for technological supremacy","The Space Race was merely symbolic with no real military implications","NASA was created before Sputnik as a peaceful exploration agency","Both sides cooperated secretly on space technology"], tag: "Cold War · Arms Race", explain: "Sputnik (1957) shocked the US — if the USSR could launch a satellite, it could launch a nuclear warhead. NASA (1958) was America's direct response. The Space Race became a proxy for superpower rivalry." },
+      { q: "What was the Truman Doctrine and how did Stalin interpret it?", a: "US commitment to containing communism — Stalin called it a 'call to war'", opts: ["US commitment to containing communism — Stalin called it a 'call to war'","American promise to rebuild European economies after WW2","A US-UK military alliance against Soviet expansion","US policy of selective disengagement from European affairs"], tag: "Cold War · Containment", explain: "The Truman Doctrine (1947) pledged US support for countries resisting Soviet pressure. Stalin interpreted it as an aggressive declaration, calling it essentially a 'call to war'." },
+      { q: "What was the 'domino effect' theory that worried American policymakers?", a: "If one country fell to communism, neighbouring countries would follow", opts: ["If one country fell to communism, neighbouring countries would follow","Nuclear weapons would cascade into regional conflicts automatically","Soviet economic growth would outpace the US within 20 years","Military alliances would automatically drag all members into any conflict"], tag: "Cold War · Containment", explain: "The domino theory held that if one country became communist, its neighbours would also fall. This justified US intervention in Korea, Vietnam and elsewhere — including defending West Berlin." },
+      { q: "What was the Korean War and why was it significant for the Cold War?", a: "North Korea (backed by China + USSR) invaded South Korea — US/UN responded to contain communism; showed indirect superpower conflict to avoid MAD", opts: ["North Korea (backed by China + USSR) invaded South Korea — US/UN responded to contain communism; showed indirect superpower conflict to avoid MAD","A direct war between the USA and USSR that nearly went nuclear","A UN peacekeeping mission with no superpower involvement","A civil war that both the USA and USSR deliberately ignored"], tag: "Cold War · Proxy Wars", explain: "Stalin disguised Soviet troops as Chinese/Korean to avoid a direct conflict that could trigger MAD. The US, led by MacArthur initially, also de-escalated when China entered — neither side wanted direct superpower conflict." },
+    ]
+  },
+
+  {
+    id: 'hitler',
+    title: "Hitler: Rise & Consolidation",
+    icon: '⚡',
+    accent: '#9b7fdb',
+    desc: 'Weimar weaknesses, Nazi methods, consolidation of power',
+    cards: [
+      { q: "How much did Germany owe in reparations under the Treaty of Versailles?", a: "132 billion Gold Marks", opts: ["132 billion Gold Marks","50 billion Gold Marks","200 billion Gold Marks","85 billion Gold Marks"], tag: "Hitler's Rise · Economic Context", explain: "The TOV imposed crushing reparations of 132 billion Gold Marks on Germany, causing economic hardship and resentment that Hitler exploited with his 'stab in the back' myth." },
+      { q: "What was the Dawes Plan (1924) and the Young Plan (February 1929)?", a: "Dawes Plan: US loan to Germany; Young Plan: reduced reparations", opts: ["Dawes Plan: US loan to Germany; Young Plan: reduced reparations","Dawes Plan: Marshall Aid precursor; Young Plan: German debt cancellation","Dawes Plan: German austerity program; Young Plan: US investment guarantee","Dawes Plan: French reparations demand; Young Plan: German counter-offer"], tag: "Hitler's Rise · Economic Context", explain: "The Dawes Plan (1924) stabilised Germany with US loans; the Young Plan (Feb 1929) reduced payments. But the Wall Street Crash (Oct 1929) called in US loans, plunging Germany back into depression." },
+      { q: "What was Article 48 of the Weimar Constitution?", a: "Emergency Decree power — 'Made the Weimar Republic vulnerable to dictatorial rule'", opts: ["Emergency Decree power — 'Made the Weimar Republic vulnerable to dictatorial rule'","Proportional representation system that fragmented the Reichstag","Constitutional protection for civil liberties that Hitler later suspended","The clause allowing foreign military intervention in German politics"], tag: "Hitler's Rise · Weimar Weaknesses", explain: "Article 48 allowed the President to rule by emergency decree without the Reichstag. Hitler used this via Hindenburg after the Reichstag Fire to suspend civil liberties and arrest communists." },
+      { q: "What was the Reichstag Fire (1933) and what are the two main historian views?", a: "Fire that destroyed parliament — Staged: Benjamin Carter Hett; Van der Lubbe alone: Felix Kellerhoff (most historians agree with Kellerhoff)", opts: ["Fire that destroyed parliament — Staged: Benjamin Carter Hett; Van der Lubbe alone: Felix Kellerhoff (most historians agree with Kellerhoff)","A Soviet attack on German democracy — USSR vs Germany debate","An accidental fire — Kellerhoff; A communist plot — Benjamin Hett","An SA operation — Hett; A lone Dutch communist — most historians"], tag: "Hitler's Rise · Key Events", explain: "Historians debate: Hett ('Burning the Reichstag') says it was staged by the Nazis. Kellerhoff says Van der Lubbe acted alone. Historian Ian Kershaw sides with Kellerhoff. Either way, Hitler exploited it to invoke Article 48." },
+      { q: "What was the Enabling Act (1933) and what power did it give Hitler?", a: "Gave Hitler full legislative power — he could make laws without the Reichstag", opts: ["Gave Hitler full legislative power — he could make laws without the Reichstag","Allowed Hitler to appoint himself President","Suspended the Weimar Constitution entirely","Merged Germany's states into a centralised Nazi government"], tag: "Hitler's Rise · Seizure of Power", explain: "With communists arrested (via Article 48), Hitler secured a 2/3 majority to pass the Enabling Act, giving him full legislative power. Combined with the President's executive power after Hindenburg's death (1934), this made him absolute dictator." },
+      { q: "How did Hitler combine full dictatorial power in 1934?", a: "After Hindenburg's death, he merged the roles of Chancellor and President into 'Führer', gaining both executive and legislative power", opts: ["After Hindenburg's death, he merged the roles of Chancellor and President into 'Führer', gaining both executive and legislative power","He dissolved the Reichstag and declared a military dictatorship","He won a national referendum for absolute power with 99% support","He was appointed by the army following a coup against the Weimar government"], tag: "Hitler's Rise · Seizure of Power", explain: "1933: Enabling Act gave legislative power. 1934: After Hindenburg died, Hitler combined Chancellor + President → 'Führer'. He now had both executive and legislative power — full dictatorial control." },
+      { q: "What was the Night of Long Knives (1934)?", a: "Hitler ordered the assassination of Ernst Röhm (head of the SA) and other SA leaders who were gaining too much power", opts: ["Hitler ordered the assassination of Ernst Röhm (head of the SA) and other SA leaders who were gaining too much power","The first mass arrest of Jews in Germany","The burning of Jewish synagogues across Germany","The execution of communist leaders after the Reichstag Fire"], tag: "Hitler's Rise · Terror", explain: "Ernst Röhm's SA had 3 million members and Röhm wanted a 'second revolution'. Hitler, to appease the army and eliminate a rival, ordered the SS to assassinate Röhm and other SA leaders." },
+      { q: "What was the 'stab in the back' myth (Dolchstoßlegende)?", a: "Hitler's propaganda: the Weimar Republic 'stabbed Germany' by signing the TOV — blaming 'November Criminals' rather than the army for defeat", opts: ["Hitler's propaganda: the Weimar Republic 'stabbed Germany' by signing the TOV — blaming 'November Criminals' rather than the army for defeat","A socialist theory that industrialists caused Germany's WW1 defeat","A communist argument that the Kaiser betrayed ordinary soldiers","A Catholic Church narrative about moral decline causing military defeat"], tag: "Hitler's Rise · Propaganda", explain: "Hitler claimed the undefeated German army was 'stabbed in the back' by liberal politicians who signed the humiliating TOV. The 'November Criminals' narrative gave Germans an external enemy to blame for national humiliation." },
+      { q: "What was the Spartacist Revolt (1919) and how did it help Hitler?", a: "Communist uprising in 1919 that was crushed — but made Germans fear communism, making them open to Hitler's anti-communist message", opts: ["Communist uprising in 1919 that was crushed — but made Germans fear communism, making them open to Hitler's anti-communist message","A Nazi SA attack on communist headquarters in Berlin","A failed military coup by generals opposed to the Weimar Republic","A workers' strike that Hitler used to justify banning trade unions"], tag: "Hitler's Rise · Social Context", explain: "The failed Spartacist communist revolt terrified middle-class Germans. Hitler skillfully exploited this fear — positioning himself as the man who would save Germany from communism." },
+      { q: "What was autarky and why did Hitler pursue it?", a: "Economic self-sufficiency — to prepare for war without depending on imports", opts: ["Economic self-sufficiency — to prepare for war without depending on imports","A system of free trade to boost Germany's industrial exports","A social welfare program to reduce unemployment","An agricultural policy to collectivise German farming"], tag: "Hitler's Consolidation · Economy", explain: "Hitler wanted Germany to be economically independent (autarky) so it could wage war without being vulnerable to blockades. This drove the Autobahn project, the 4-Year Plans, and the push for 'living space' (Lebensraum) in the East." },
+      { q: "What was the DAF (Deutsche Arbeiter Front)?", a: "Nazi replacement for trade unions — gave the government complete control over workers and their conditions", opts: ["Nazi replacement for trade unions — gave the government complete control over workers and their conditions","An economic planning body led by Hermann Göring","A Nazi youth organisation to train future factory workers","A propaganda organisation promoting German products abroad"], tag: "Hitler's Consolidation · Economy", explain: "Hitler banned independent trade unions and replaced them with the DAF. Workers lost the right to strike or collectively bargain — the state controlled all aspects of working life." },
+      { q: "Who led Hitler's 4-year economic plans and what were their goals?", a: "Hermann Göring — preparing for war, achieving autarky, boosting economy, creating jobs", opts: ["Hermann Göring — preparing for war, achieving autarky, boosting economy, creating jobs","Joseph Goebbels — propaganda-driven industrial expansion","Heinrich Himmler — military-industrial complex controlled by the SS","Albert Speer — rebuilding German cities for the 'thousand-year Reich'"], tag: "Hitler's Consolidation · Economy", explain: "Göring's 4-Year Plans focused on rearmament and autarky. Hitler 'achieved' 0% Aryan unemployment, partly through rearmament, the Autobahn project, and excluding Jews, women, and others from statistics." },
+      { q: "What did the Concordat (1933) between Hitler and the Catholic Church involve?", a: "The Church would not interfere in German politics; Hitler would not interfere with the Church — but the Church had to support Nazi ideology", opts: ["The Church would not interfere in German politics; Hitler would not interfere with the Church — but the Church had to support Nazi ideology","Complete separation of Church and state in Nazi Germany","The Church agreed to denounce communism in exchange for political influence","The Vatican recognised Hitler as the legitimate ruler of all Christian Europe"], tag: "Hitler's Consolidation · Political", explain: "The Concordat neutralised the Church as potential opposition. Contrast with Mao, who banned religion entirely — Hitler used negotiation to manage the Church." },
+      { q: "What was Kristallnacht ('Night of Broken Glass', 1938)?", a: "The first official mass violence against Jews — Jewish shops, synagogues destroyed; often called the start of the Holocaust escalation", opts: ["The first official mass violence against Jews — Jewish shops, synagogues destroyed; often called the start of the Holocaust escalation","The assassination of a Nazi official that triggered Jewish deportations","The night Hitler announced the Nuremberg Laws to the German public","A Soviet-sponsored riot designed to destabilise Nazi Germany"], tag: "Hitler's Consolidation · Aryan Race", explain: "Kristallnacht (November 1938) marked a turning point — from legal discrimination (Nuremberg Laws 1935) to mass physical violence against Jewish property and people. It foreshadowed the Holocaust." },
+      { q: "What were the Nuremberg Laws (1935)?", a: "Laws that stripped Jews of citizenship and made them legally inferior second-class people in Germany", opts: ["Laws that stripped Jews of citizenship and made them legally inferior second-class people in Germany","Laws that banned all political parties except the NSDAP","Laws that established the SS as an independent police force","Laws that made anti-war speech illegal throughout the Reich"], tag: "Hitler's Consolidation · Aryan Race", explain: "The Nuremberg Laws formally defined who was Jewish (by ancestry) and stripped Jews of German citizenship. This began the legal framework that would eventually lead to the Holocaust." },
+      { q: "What was the Wannsee Conference (1942)?", a: "Secret Nazi meeting that planned the 'Final Solution' — systematic extermination of all Jews in Europe", opts: ["Secret Nazi meeting that planned the 'Final Solution' — systematic extermination of all Jews in Europe","Hitler's war council planning the invasion of the Soviet Union","A meeting of Nazi propaganda chiefs to plan the 1936 Olympics","Conference establishing the SS concentration camp system"], tag: "Hitler's Consolidation · Aryan Race", explain: "At Wannsee (January 1942), senior Nazi officials coordinated the 'Final Solution to the Jewish Question' — the systematic genocide of Europe's Jewish population through extermination camps." },
+      { q: "What does 'Kinder, Küche, Kirche' represent in Nazi ideology?", a: "The ideal role for German women: Children, Kitchen, Church — focused on reproduction and domestic life", opts: ["The ideal role for German women: Children, Kitchen, Church — focused on reproduction and domestic life","A Nazi slogan promoting youth education and military service","A propaganda motto for the 'Strength through Joy' (KdF) programme","The three pillars of Nazi economic policy: growth, unity, strength"], tag: "Hitler's Consolidation · Social", explain: "The '3 Ks' defined women's place in Nazi ideology. Women were rewarded (medals, tax benefits) for having many children and discouraged from careers — needed to produce soldiers for the Reich." },
+      { q: "What was the Hitler-Jugend (Hitler Youth) and BDM?", a: "Hitler Youth (boys) and League of German Girls (Bund Deutscher Mädel) — replaced parental authority with state loyalty; initially voluntary, then compulsory", opts: ["Hitler Youth (boys) and League of German Girls — replaced parental authority with state loyalty; initially voluntary, then compulsory","Elite SS training academies for future Nazi officers","Propaganda organisations producing Nazi art and theatre","Civic organisations for adult Germans to volunteer for state projects"], tag: "Hitler's Consolidation · Social", explain: "'Raised a generation loyal to Hitler' — by replacing parental authority with state authority. Children were indoctrinated from young age; it became compulsory in 1936." },
+      { q: "List Hitler's key foreign policy actions from 1933–1939 in order.", a: "1933: Leaves LON; 1935: Anglo-German Naval Agreement; 1936: Rhineland, Rome-Berlin Axis; 1938: Anschluss, Munich; 1939: Rest of Czechoslovakia, Pact of Steel, Molotov-Ribbentrop, Poland", opts: ["1933: Leaves LON; 1935: Anglo-German Naval Agreement; 1936: Rhineland, Rome-Berlin Axis; 1938: Anschluss, Munich; 1939: Rest of Czechoslovakia, Pact of Steel, Molotov-Ribbentrop, Poland","1933: Rhineland; 1935: Anschluss; 1937: Munich Agreement; 1938: Poland invasion","1934: Leaves LON; 1936: Naval Agreement; 1937: Anschluss; 1939: Munich","1933: Anschluss; 1935: Anti-Comintern Pact; 1936: Rhineland; 1938: Poland"], tag: "Hitler's Consolidation · Foreign Policy", explain: "This timeline shows Hitler's systematic violation of the TOV through appeasement: each violation unpunished emboldened the next, until the invasion of Poland finally ended appeasement." },
+      { q: "What was Kraft durch Freude (KdF) in Nazi Germany?", a: "Government-controlled leisure organisation — the state controlled workers' free time", opts: ["Government-controlled leisure organisation — the state controlled workers' free time","A propaganda film studio producing Nazi cinema","The Nazi trade union replacing the DAF after 1936","A government savings scheme for workers to buy Volkswagen cars"], tag: "Hitler's Consolidation · Social", explain: "KdF ('Strength through Joy') gave workers holidays, theatre trips, and sports — but under state control. It was social engineering: keeping workers happy and loyal while monitoring their leisure." },
+    ]
+  },
+
+  {
+    id: 'mao',
+    title: "Mao: Rise & Consolidation",
+    icon: '☭',
+    accent: '#e05555',
+    desc: 'CCP rise, civil war, consolidation of China',
+    cards: [
+      { q: "What were Mao's 'three big mountains' that he promised to remove?", a: "Feudalism, imperialism, and bureaucratic capitalism", opts: ["Feudalism, imperialism, and bureaucratic capitalism","Poverty, illiteracy, and foreign invasion","Capitalism, nationalism, and religious oppression","Warlordism, colonialism, and Japanese occupation"], tag: "Mao's Rise · Ideology", explain: "Mao's three big mountains — feudalism (exploitative landlords), imperialism (foreign powers), and bureaucratic capitalism (corrupt nationalist government) — perfectly diagnosed China's problems for a population that was 70% landless peasants." },
+      { q: "What percentage of Chinese households were landless before Mao's revolution?", a: "70%", opts: ["70%","40%","55%","85%"], tag: "Mao's Rise · Social Context", explain: "70% of Chinese households owned no land — living in a feudalistic state under wealthy landlords. This made Mao's promise of land reform hugely popular among peasants, who were the vast majority of China's population." },
+      { q: "What was the warlord period in China and how did it affect the economy?", a: "A period of constant warfare between regional militias (up to 1 million soldiers each) requiring heavy taxation of civilians", opts: ["A period of constant warfare between regional militias requiring heavy taxation of civilians","The era of the Qing Dynasty's military expansion into Southeast Asia","Japan's military control of all Chinese territory before 1937","The CCP's guerrilla campaign against the Nationalist government"], tag: "Mao's Rise · Economic Context", explain: "During the warlord period, rival military leaders controlled different regions. Their armies (sometimes 1 million strong) required enormous taxes — economically devastating for already-poor Chinese peasants." },
+      { q: "When was the Shanghai Massacre and what happened?", a: "1927 — GMD forces massacred CCP members, reducing GMD popularity and driving Mao to the countryside", opts: ["1927 — GMD forces massacred CCP members, reducing GMD popularity and driving Mao to the countryside","1931 — Japanese forces killed thousands of Shanghai communists","1937 — The Nanjing Massacre spilled over into Shanghai","1946 — Full-scale civil war began with attacks on CCP in Shanghai"], tag: "Mao's Rise · Key Events", explain: "In 1927, GMD leader Chiang Kai-shek turned on his communist allies and massacred CCP members in Shanghai. This split the united front and drove Mao to build his base among rural peasants instead." },
+      { q: "When did the CCP win the civil war and Mao become dictator?", a: "1949", opts: ["1949","1946","1952","1945"], tag: "Mao's Rise · Civil War", explain: "After a full-scale civil war (most historians say 1946–1949, following Odd Arne Westad), the CCP defeated the GMD. Chiang Kai-shek fled to Taiwan, and Mao proclaimed the People's Republic of China on 1 October 1949." },
+      { q: "How does historian Phil Carradice differ from Odd Arne Westad on the start of China's Civil War?", a: "Carradice: civil war began with the Shanghai Massacre (1927); Westad: it became a 'full-scale military operation' only in 1946", opts: ["Carradice: civil war began with the Shanghai Massacre (1927); Westad: it became a 'full-scale military operation' only in 1946","Carradice: US involvement started the war in 1945; Westad: Japan's defeat triggered civil war","Carradice: civil war was inevitable from 1911; Westad: it was preventable until 1946","Carradice: the war ended in 1945; Westad: it continued until 1952"], tag: "Mao's Rise · Historian Views", explain: "This historiographical debate is important for essays: Phil Carradice argues tensions from 1927 constituted civil war; Odd Arne Westad (more commonly cited) sees 1946 as the start of full-scale conflict." },
+      { q: "What was the Long March and why was it significant for Mao?", a: "A strategic retreat to Yan'an (1934–35) that became powerful propaganda — demonstrating CCP resilience and spreading communist ideology", opts: ["A strategic retreat to Yan'an that became powerful propaganda — demonstrating CCP resilience and spreading communist ideology","A military offensive against Japanese forces in northern China","A GMD military campaign to encircle communist forces","A diplomatic mission to secure Soviet support for the CCP"], tag: "Mao's Rise · Methods", explain: "The Long March (1934–35) was militarily a retreat but politically a triumph. Mao propagandised it as proof of communist determination. He trained guerrilla soldiers along the way and promised land reform to the peasants he met." },
+      { q: "What was the Second United Front and how did it benefit Mao?", a: "CCP-GMD cooperation against Japan (2nd Sino-Japanese War) — great propaganda for Mao as it showed CCP patriotism", opts: ["CCP-GMD cooperation against Japan — great propaganda for Mao as it showed CCP patriotism","A Soviet-Chinese military alliance against Japanese aggression","A US-backed ceasefire between CCP and GMD","An alliance between Mao and Japanese communists against the GMD"], tag: "Mao's Rise · Methods", explain: "When Japan attacked China, the CCP and GMD temporarily united. This was brilliant propaganda for Mao — it showed the CCP was the true defender of China against foreign imperialism, winning popular support." },
+      { q: "Why did Mao rely less on written propaganda than Hitler?", a: "China had only 20% literacy and many different languages — Mao had to communicate face-to-face and through visual/oral means", opts: ["China had only 20% literacy — Mao had to communicate face-to-face and through visual/oral means","Mao personally disliked writing and preferred direct communication","The CCP lacked printing technology unlike Nazi Germany","Mao's ideology was simpler and needed no written explanation"], tag: "Mao vs Hitler · Comparison", explain: "Key contrast: Hitler could use Mein Kampf and printed posters because Germany had high literacy. Mao, facing 80% illiteracy, relied on speeches, rallies, public demonstrations and symbols rather than written text." },
+      { q: "What was the Hundred Flowers Campaign (1956) and what followed it?", a: "Mao invited criticism of the government — then the Anti-Rightist Campaign (1957) killed 300–500,000 of those who criticised", opts: ["Mao invited criticism of the government — then the Anti-Rightist Campaign (1957) killed 300–500,000 of those who criticised","Mao allowed free elections — then cancelled them when results were unfavorable","A cultural liberalisation that led to the Cultural Revolution","An economic experiment that failed, leading to the Great Leap Forward"], tag: "Mao's Consolidation · Political", explain: "Historian Jung Chang argues it was a deliberate trap — let critics speak, then identify and eliminate them. Jonathan Spence disagrees, seeing it as a genuine miscalculation by Mao." },
+      { q: "What was the Great Leap Forward and why did it fail so catastrophically?", a: "Second 5-year plan aiming to rapidly industrialise China — failed because: faked numbers, anti-pest campaign killing birds, backyard furnaces; ~45 million died", opts: ["Second 5-year plan aiming to rapidly industrialise China — failed because: faked numbers, anti-pest campaign killing birds, backyard furnaces; ~45 million died","First 5-year plan that succeeded in industrialisation then caused famine","Mao's agricultural reform that failed due to Soviet withdrawal of aid","Mao's invasion of Korea that caused economic devastation at home"], tag: "Mao's Consolidation · Economy", explain: "The Great Leap Forward (1958–62) caused the world's worst peacetime famine. Key failures: (1) villages faked production numbers, (2) killing sparrows (anti-pest) caused insect plagues that destroyed crops, (3) melting farm tools into useless 'backyard steel'." },
+      { q: "What was the Cultural Revolution (1966) and how did it start?", a: "Mao's campaign to destroy 'old' China — started symbolically with Mao swimming the Yangtze River; used Red Guards youth groups", opts: ["Mao's campaign to destroy 'old' China — started with Mao swimming the Yangtze River; used Red Guards youth groups","A genuine grassroots student revolution Mao supported but didn't control","A Soviet-inspired cultural campaign to standardise communist ideology","Mao's response to the Sino-Soviet split to purify Chinese communism"], tag: "Mao's Consolidation · Cultural Revolution", explain: "The Cultural Revolution began with Mao's symbolic swim in the Yangtze (proving he was healthy and in control). Red Guards — youth fanatically loyal to Mao — then attacked 'old' culture, institutions, and perceived enemies." },
+      { q: "What were 'struggle sessions' (批斗会) under Mao?", a: "Public confessions forced on accused enemies of the state — even innocent people confessed; often ended in suicide", opts: ["Public confessions forced on accused enemies of the state — often ending in suicide","Secret trials conducted by the CCP to eliminate political opponents","Mao's re-education camps combining forced labour with ideological lessons","Public debates where citizens could criticise local officials"], tag: "Mao's Consolidation · Terror", explain: "Struggle sessions were public humiliations where accused 'class enemies' were forced to confess (even invented) crimes before crowds. These 'enemies without weapons' often killed themselves rather than endure further humiliation." },
+      { q: "What was the Sino-Soviet split and what caused it?", a: "Break in CCP-USSR relations — caused by Khrushchev's 'de-Stalinisation' after 1956; Mao admired Stalin and opposed Khrushchev's criticism", opts: ["Break in CCP-USSR relations — caused by Khrushchev's de-Stalinisation; Mao admired Stalin and opposed Khrushchev","A territorial dispute over Manchuria and Mongolia","Disagreement over Korea — China wanted more Soviet military support","The USSR refused to share nuclear weapons technology with China"], tag: "Mao's Consolidation · Foreign Policy", explain: "The Sino-Soviet Pact (1950) seemed solid, but when Khrushchev denounced Stalin after 1956, Mao — who admired Stalin's methods — was outraged. The split accelerated: USSR withdrew advisors and ended aid, contributing to the Great Leap Forward's failure." },
+      { q: "What was the 3-Anti Campaign (1951) and 5-Anti Campaign (1952)?", a: "3-Anti: against corruption, bureaucracy, inefficiency (government reform); 5-Anti: against bribery, theft of state property (country reform)", opts: ["3-Anti: against corruption, bureaucracy, inefficiency; 5-Anti: against bribery, theft of state property","3-Anti: against capitalism, feudalism, religion; 5-Anti: against warlordism, imperialism, GMD","3-Anti: against Japan, USA, Taiwan; 5-Anti: against the five social classes","3-Anti: against intellectuals, landlords, capitalists; 5-Anti: against the five religions"], tag: "Mao's Consolidation · Political", explain: "These campaigns consolidated Mao's power by purging corrupt officials (3-Anti, 1951) and corrupt businessmen (5-Anti, 1952), replacing them with loyal CCP members and extending state control." },
+      { q: "How did women's rights change under Mao compared to Hitler?", a: "Mao improved women's rights (e.g., banned foot binding, equal status); Hitler restricted women to 'Kinder, Küche, Kirche' roles", opts: ["Mao improved women's rights (banned foot binding, equal status); Hitler restricted women to 'Kinder, Küche, Kirche'","Both improved women's rights equally","Both restricted women to domestic roles","Hitler improved women's rights in factories; Mao restricted women to agricultural roles"], tag: "Mao vs Hitler · Comparison", explain: "Key contrast for essays: Hitler's ideology placed women in the home (childbearing, cooking, church). Mao's communism theoretically promoted gender equality — banning foot binding, women in the workforce — though practice often differed." },
+      { q: "What happened in 1971–1972 in China's international relations?", a: "1971: China joins the UN; 1972: Nixon visits China — China opens to the world", opts: ["1971: China joins the UN; 1972: Nixon visits China — China opens to the world","1971: Sino-Soviet reconciliation; 1972: China joins NATO's partner program","1971: China and Taiwan reunify; 1972: China joins the World Bank","1971: China and Vietnam sign defence pact; 1972: China ends Korean War involvement"], tag: "Mao's Consolidation · Foreign Policy", explain: "Nixon's 1972 visit to China was a geopolitical earthquake — the US recognised the People's Republic, isolating Taiwan. Combined with China joining the UN (replacing Taiwan) in 1971, this marked China's emergence as a global power." },
+    ]
+  },
+
+  {
+    id: 'ww2',
+    title: "Road to WW2 — Paper 1",
+    icon: '🌍',
+    accent: '#4caf7d',
+    desc: 'Manchurian Crisis, appeasement, Axis aggression 1931–1941',
+    cards: [
+      { q: "What was the Manchurian Crisis (1931) and what caused it?", a: "Japan invaded Manchuria for resources — triggered by the Mukden Incident (staged railway explosion by the Kwantung Army)", opts: ["Japan invaded Manchuria for resources — triggered by the Mukden Incident (staged railway explosion by the Kwantung Army)","Japan invaded China proper in response to Chinese border attacks","A Chinese civil war that Japan exploited to seize territory","Japan's response to Soviet expansion in East Asia"], tag: "Paper 1 · Japan 1931", explain: "The Kwantung Army staged an explosion on the South Manchuria Railway (Mukden Incident) and used it as a pretext to invade. Both the Japanese government AND Emperor Hirohito lacked the power to stop the militarily autonomous Kwantung Army." },
+      { q: "What was the Lytton Report and what was its result?", a: "League of Nations commission that condemned Japan's invasion of Manchuria — Japan responded by leaving the LON in 1933", opts: ["League of Nations commission that condemned Japan's invasion of Manchuria — Japan responded by leaving the LON in 1933","UN report that led to international sanctions against Japan","British government inquiry into the causes of WW1 in Asia","US Senate report that recommended isolationism in response to Japanese aggression"], tag: "Paper 1 · Japan / LON Failure", explain: "The LON sent the Lytton Commission to investigate — but it took so long that Japan had already consolidated control of Manchuria. When the report condemned Japan, Japan simply left the LON. This exposed the LON's powerlessness." },
+      { q: "What was the Manchukuo puppet state (1932)?", a: "A fake 'independent' state created by Japan in Manchuria, officially pretending it was not Japanese-occupied territory", opts: ["A fake 'independent' state created by Japan in Manchuria — officially pretending it was not occupied","A genuine autonomous region of China that allied with Japan voluntarily","A Japanese colony officially annexed as part of the Japanese Empire","A League of Nations protectorate managed by Japan temporarily"], tag: "Paper 1 · Japan 1932", explain: "Japan installed the last Qing emperor Puyi as puppet ruler of 'Manchukuo' — maintaining a fiction of independence while Japan extracted Manchuria's resources. Militarists even assassinated a Japanese prime minister who opposed the Kwantung Army." },
+      { q: "What was the Stresa Front (1935) and why did it collapse?", a: "Italy + Britain + France agreed to oppose Hitler — it collapsed when Britain signed the Anglo-German Naval Agreement (1935) WITHOUT consulting France and Italy", opts: ["Italy + Britain + France agreed to oppose Hitler — collapsed when Britain signed the Anglo-German Naval Agreement without consulting allies","A military alliance against Japan that Britain abandoned to appease Germany","An attempt by France to isolate Germany that Italy refused to join","A secret agreement between Mussolini and Hitler that broke the front"], tag: "Paper 1 · Appeasement", explain: "The Stresa Front showed potential to contain Hitler — but Britain undermined it by secretly allowing Germany a navy (35% of Britain's) without consulting France or Italy. This destroyed allied unity and encouraged further aggression." },
+      { q: "What was the Abyssinian Crisis (1935–36) and what did it reveal about the League of Nations?", a: "Italy invaded Abyssinia (Ethiopia) — LON imposed sanctions BUT the USA increased trade with Italy and key supplies (oil) were excluded; revealed LON's fatal weakness", opts: ["Italy invaded Abyssinia — LON sanctions failed because USA and key supplies were excluded; revealed LON's weakness","Italy invaded Abyssinia — LON military intervention drove Italy out; showed LON effectiveness","Abyssinia invaded Italian Eritrea — LON refused to act, exposing European bias","Germany annexed Abyssinia — LON condemned it but took no action"], tag: "Paper 1 · LON Failure", explain: "The LON's Abyssinian failure was catastrophic: (1) the USA (not a member) increased trade with Italy, undermining sanctions; (2) the LON excluded oil from sanctions; (3) Britain and France secretly offered Italy part of Abyssinia (Hoare-Laval Pact). Mussolini kept Abyssinia and left the LON." },
+      { q: "What was the Munich Agreement (1938) and why was it a turning point?", a: "Britain and France gave Hitler the Sudetenland — WITHOUT Czechoslovakia's consent; marked the peak of appeasement", opts: ["Britain and France gave Hitler the Sudetenland — without Czechoslovakia's consent; peak of appeasement","Britain, France and Czechoslovakia negotiated a peacefully agreed border change","Hitler, Britain, France and USSR agreed to partition Czechoslovakia equally","The Sudetenland Germans voted to join Germany in a LON-supervised referendum"], tag: "Paper 1 · Appeasement", explain: "Neville Chamberlain and Daladier agreed to give Hitler the Sudetenland without even inviting Czechoslovakia to the negotiations. When Hitler then invaded the rest of Czechoslovakia in 1939, it proved appeasement had failed — leading to declarations of war when Poland was invaded." },
+      { q: "What was the Molotov-Ribbentrop Pact (1939) and its secret protocol?", a: "Public: non-aggression between Germany and USSR; Secret: division of Poland and Eastern Europe into spheres of influence", opts: ["Public: non-aggression between Germany and USSR; Secret: division of Poland and Eastern Europe into spheres of influence","A military alliance between Germany and the USSR to fight Britain","A Soviet-German trade agreement exchanging raw materials for weapons","A genuine peace treaty that prevented Soviet involvement in WW2"], tag: "Paper 1 · Road to War", explain: "The Molotov-Ribbentrop Pact shocked the world — ideological enemies making a deal. Publicly: no attack each other. Secretly: split Poland between them. This freed Hitler to invade Poland (1 Sept 1939) without Soviet opposition." },
+      { q: "What was the Anti-Comintern Pact (1936) and who signed it?", a: "Japan and Germany (later Italy) agreed they both opposed communism — formalising the aggressive triangle", opts: ["Japan and Germany agreed they both opposed communism — formalising the aggressive triangle","Germany, Italy and Japan formed a military alliance against the USSR","USA, Britain and France agreed to contain communist expansion","Germany and Japan agreed to divide Asia and Europe between them"], tag: "Paper 1 · Axis Formation", explain: "The Anti-Comintern Pact bound Germany and Japan (and later Italy) in ideological opposition to communism. It was a symbolic alignment of aggressors, later formalised militarily in the Tripartite Pact (1940)." },
+      { q: "What was the Tripartite Pact (1940) and what did it formalise?", a: "Military alliance between Germany, Italy and Japan — formalised the Axis powers and expanded the Pact of Steel", opts: ["Military alliance between Germany, Italy and Japan — formalised the Axis powers","A defensive alliance between Germany, Italy and Japan against the USSR only","A trade agreement between the three Axis powers to share occupied resources","A secret agreement to divide the post-war world between Germany, Italy and Japan"], tag: "Paper 1 · Axis Formation", explain: "The Tripartite Pact (September 1940) formalised the Axis. It expanded the Rome-Berlin Pact of Steel to include Japan, creating a mutual defence agreement. Each aggressor nation now backed the others formally." },
+      { q: "What was Japan's 'Greater East Asia Co-Prosperity Sphere'?", a: "Japanese propaganda justifying its imperial expansion as 'liberating' Asian nations from Western colonialism — while actually exploiting them", opts: ["Japanese propaganda justifying expansion as 'liberating' Asia from Western colonialism — while actually exploiting them","A genuine economic partnership between Japan and liberated Asian nations","Japan's UN-approved economic development program for Southeast Asia","A defensive alliance of Asian nations to resist European colonialism"], tag: "Paper 1 · Japan's Ideology", explain: "Japan's 'Co-Prosperity Sphere' rhetoric claimed to free Asian nations from Western imperialism — but Japan's own brutal occupation was itself imperialism. Roosevelt exploited this hypocrisy to challenge Japanese expansion." },
+      { q: "Why could Roosevelt aid China despite US Neutrality Acts?", a: "Because Japan never officially declared war on China — so it wasn't technically 'at war', allowing loans and military aid to China", opts: ["Because Japan never officially declared war on China — technically not 'at war', allowing loans and military aid","Because Congress secretly amended the Neutrality Acts for China","Because China was a democracy and the Acts only covered dictatorships","Because Japan had violated the Washington Naval Treaty, voiding US neutrality obligations"], tag: "Paper 1 · USA and Asia", explain: "The Neutrality Acts banned US trade with 'nations at war'. Japan never formally declared war on China (calling it the 'China Incident'). Roosevelt exploited this technicality to send China loans and military equipment despite official neutrality." },
+      { q: "What was Pearl Harbour (December 7, 1941) and why did Japan attack?", a: "Japan attacked the key US naval base in Hawaii — to cripple US naval power and prevent interference with Japan's expansion into Southeast Asia", opts: ["Japan attacked the key US naval base in Hawaii — to cripple US naval power and prevent interference with Southeast Asia expansion","Japan attacked Pearl Harbour as retaliation for US sanctions on Japanese oil","A Japanese mistake — they intended to attack the Philippines instead","Japan attacked to force the US into a peace agreement over China"], tag: "Paper 1 · Japan 1941", explain: "After the USA, UK and Netherlands imposed an oil embargo on Japan (1941), Japan chose war. Attacking Pearl Harbour was designed to destroy US naval capacity before Japan seized oil-rich Dutch East Indies (now Indonesia)." },
+      { q: "What was the Nanjing Massacre (1937) and how many died?", a: "Japanese forces killed an estimated 200,000–300,000 Chinese civilians and soldiers in Nanjing during the 2nd Sino-Japanese War", opts: ["Japanese forces killed an estimated 200,000–300,000 Chinese civilians and soldiers in Nanjing","A Soviet massacre of Chinese nationalists during the civil war","Japanese forces killed 5,000 soldiers in a decisive battle for China's capital","Chinese GMD forces massacred Japanese POWs in retaliation for earlier atrocities"], tag: "Paper 1 · Japan 1937", explain: "The Nanjing Massacre (Rape of Nanjing, December 1937) was among WW2's worst atrocities. Japanese forces systematically killed civilians and POWs. The Marco Polo Bridge Incident triggered the full 2nd Sino-Japanese War." },
+      { q: "What was Operation Barbarossa (1941) and what were its consequences?", a: "Hitler's invasion of the USSR — brought the Soviet Union into WW2 as an Allied power; Hitler opened a catastrophic two-front war", opts: ["Hitler's invasion of the USSR — brought USSR into WW2 as Allied power; created a catastrophic two-front war","Germany's failed attempt to invade Britain across the English Channel","The German offensive in North Africa to secure Mediterranean oil routes","Germany's pre-emptive strike against Soviet forces massing on the Polish border"], tag: "Paper 1 · Germany 1941", explain: "Despite the Molotov-Ribbentrop Pact, Hitler always intended to invade the USSR for Lebensraum and resources. Operation Barbarossa (June 1941) opened the Eastern Front — ultimately Germany's fatal mistake." },
+      { q: "What was the 2nd Sino-Japanese War (1937) triggered by?", a: "The Marco Polo Bridge Incident — Japan used a minor clash at a Beijing bridge as a pretext to invade China proper", opts: ["The Marco Polo Bridge Incident — a minor clash used as pretext to invade China","The assassination of a Japanese diplomat in Shanghai","Chinese forces attacking Japanese troops in Manchuria","The Japanese response to China's appeal to the League of Nations"], tag: "Paper 1 · Japan 1937", explain: "On July 7, 1937, Japanese and Chinese troops exchanged fire near Marco Polo Bridge (Lugouqiao) near Beijing. Japan used this minor incident as a pretext to launch a full-scale invasion of China — beginning the 2nd Sino-Japanese War and eventually triggering US involvement." },
+    ]
+  },
+
+  {
+    id: 'opcvl',
+    title: "OPCVL Method",
+    icon: '📋',
+    accent: '#d4a853',
+    desc: 'Origin, Purpose, Content, Value, Limitation — IB Paper 1 analysis',
+    cards: [
+      { q: "What does OPCVL stand for?", a: "Origin, Purpose, Content, Value, Limitation", opts: ["Origin, Purpose, Content, Value, Limitation","Object, Perspective, Context, Validity, Logic","Overview, Position, Clarity, Verification, Legitimacy","Original, Primary, Claim, Verification, Likelihood"], tag: "OPCVL · Basics", explain: "OPCVL is the IB History framework for source analysis in Paper 1. You must address each element: where the source comes from (Origin), why it was created (Purpose), what it says (Content), its strengths (Value), and its weaknesses (Limitation)." },
+      { q: "If an author is FROM an involved country, is that typically a value or limitation?", a: "Limitation — the author is likely biased due to personal/national involvement", opts: ["Limitation — the author is likely biased due to personal/national involvement","Value — insider knowledge makes the account more accurate","Value — personal experience gives the account greater authenticity","Neither — nationality is irrelevant to historical analysis"], tag: "OPCVL · Origin", explain: "An author from an involved country (e.g., an American historian writing about the Berlin Blockade, a Chinese historian writing about the Cultural Revolution) is likely to have a national bias. This is a limitation. An author from an uninvolved country is more likely unbiased — a value." },
+      { q: "If an author is NOT from an involved country, what does that suggest?", a: "The author is more likely to be unbiased — a value", opts: ["The author is more likely to be unbiased — a value","The author lacks knowledge of the topic — a limitation","The author has no authority to comment — a limitation","The source needs corroboration from local historians — neither value nor limitation"], tag: "OPCVL · Origin", explain: "An outsider historian writing about events in another country is less likely to have nationalistic bias. This objectivity is a value: their conclusions are not driven by patriotism or personal involvement." },
+      { q: "If a source is CONTEMPORARY (written at the time of events), what is the VALUE?", a: "Includes emotion and direct experience — no information has been lost; the author witnessed events firsthand", opts: ["Includes emotion and direct experience — no information has been lost","The author can provide long-term perspective on events","The author can compare events to later similar situations","The source can be cross-referenced with other contemporary accounts"], tag: "OPCVL · Year as Value/Limitation", explain: "A contemporary source captures the atmosphere, emotions and details of the moment. Nothing has been forgotten, filtered or lost over time. A diary entry written during the Cuban Missile Crisis captures the immediate fear — historical accounts written decades later cannot." },
+      { q: "If a source is CONTEMPORARY, what is the LIMITATION?", a: "Does not have the benefit of hindsight — cannot know how events developed or ended", opts: ["Does not have the benefit of hindsight — cannot know how events developed or ended","The author may have exaggerated events for dramatic effect","Contemporary sources are usually censored by governments","The author's emotions make the account unreliable"], tag: "OPCVL · Year as Value/Limitation", explain: "A contemporary author could not know the long-term consequences of what they observed. A 1938 correspondent covering the Munich Agreement could not know Hitler would still invade Czechoslovakia six months later." },
+      { q: "If a source is HISTORIC (written long after events), what is the VALUE?", a: "Benefit of hindsight — the author knows how events developed and can place them in broader context", opts: ["Benefit of hindsight — the author knows how events developed and can place them in broader context","Emotions are preserved more clearly in retrospective accounts","The author has access to more witnesses while they are still alive","Historic accounts face less government censorship than contemporary ones"], tag: "OPCVL · Year as Value/Limitation", explain: "A historian writing about the Berlin Blockade in 1980 knows its consequences (NATO formation, German division, Cold War intensification). This long-term perspective is the benefit of hindsight — a significant value." },
+      { q: "If a source is HISTORIC (written long after events), what is the LIMITATION?", a: "Emotions and details are lost over time — the author may lack the immediacy and detail of a firsthand account", opts: ["Emotions and details are lost over time — the author may lack immediacy and detail of a firsthand account","The author may be influenced by events that haven't happened yet","Historic sources are always biased toward the victors","Historic accounts are less reliable because archives are sealed"], tag: "OPCVL · Year as Value/Limitation", explain: "Over time, witnesses die, memories fade, and emotional nuance is lost. A historian writing about WW2 in 2020 cannot fully convey the lived terror of Blitz survivors that a contemporary diarist captured." },
+      { q: "If a PRIMARY source was NOT intended to be published, is that a value or limitation?", a: "Value — because it was not written for propaganda, making it more candid and honest", opts: ["Value — not written for propaganda, making it more candid and honest","Limitation — private sources lack the authority of public documents","Limitation — unpublished sources cannot be verified by other historians","Neither — publication status is irrelevant to historical value"], tag: "OPCVL · Purpose", explain: "A private letter, diary, or internal memo was NOT written to persuade an audience — so it's less likely to contain propaganda. This makes it more candid and reliable. A public speech, by contrast, was designed to influence — a clear limitation." },
+      { q: "If a primary source WAS intended for public publication, what does that suggest?", a: "Limitation — it was probably written as propaganda and may not reflect the true views of the author", opts: ["Limitation — it was probably written as propaganda and may not reflect the true views of the author","Value — public sources reach more people and have greater impact","Value — public sources have been fact-checked before publication","Neither — purpose of publication is irrelevant to content accuracy"], tag: "OPCVL · Purpose", explain: "Public speeches, newspaper articles, and government reports are often written to persuade. Hitler's speeches, Stalin's proclamations, and Mao's Little Red Book were all designed to create a specific impression — not to convey unvarnished truth." },
+      { q: "In OPCVL Content analysis, what should you note about the YEAR of a source?", a: "If the source's date is within the period being studied, the year is a value — but the source cannot cover events AFTER its date, which is a limitation", opts: ["If the source's date is within the period being studied, the year is a value — but cannot cover events after its date","The year is always a limitation because older sources are less reliable","The year is a value if it agrees with your argument, a limitation if it contradicts it","The year only matters if the author was alive during the events"], tag: "OPCVL · Content", explain: "For content: state ONE specific message the source conveys and explain its value. For the year: if it falls within the event period being studied, the contemporaneity is valuable — but clearly a source cannot cover what happened after it was written." },
+      { q: "What are the key questions to ask about ORIGIN in OPCVL?", a: "Who wrote it? (nationality, position, involvement) + When was it written? (contemporary or historic)", opts: ["Who wrote it? (nationality, position, involvement) + When? (contemporary or historic)","What does it say? + Does it agree with other sources?","Why was it created? + Who funded its creation?","Is it a primary or secondary source? + Has it been verified?"], tag: "OPCVL · Structure", explain: "Origin = WHO + WHEN. Who: Is the author from an involved country (bias/limitation) or neutral (value)? When: Contemporary (value: emotional immediacy; limitation: no hindsight) or Historic (value: hindsight; limitation: lost emotional detail)?" },
+      { q: "What are the key questions to ask about PURPOSE in OPCVL?", a: "Why was this source created? Was it meant to be published? (propaganda risk) Or private? (more candid)", opts: ["Why was this source created? Was it meant to be published? (propaganda risk) Or private? (more candid)","What does the source argue? Does it support the majority historical view?","Who commissioned the source? Is the commissioner biased?","How many people read the source? Greater reach = greater importance"], tag: "OPCVL · Structure", explain: "Purpose = WHY. If public → probably propaganda (limitation). If private → probably candid (value). If educational (textbook, academic journal) → intended to inform = value. The purpose tells you what the author was trying to achieve." },
+      { q: "How does OPCVL differ between IB History Paper 1 and a standard history essay?", a: "Paper 1 requires explicit OPCVL framework with Value AND Limitation for each source; essays integrate historical evidence more freely", opts: ["Paper 1 requires explicit OPCVL framework with Value AND Limitation for each source; essays integrate evidence more freely","Paper 1 allows personal opinion; essays must be purely objective","Paper 1 uses secondary sources only; essays use primary and secondary","Paper 1 has no word limit; essays have strict word counts"], tag: "OPCVL · IB Exam Skills", explain: "In Paper 1, you must explicitly state Origin, Purpose, Content, and then give specific VALUES and LIMITATIONS for each. In essays, you use sources as evidence without necessarily applying the OPCVL formula explicitly — though the same critical thinking applies." },
+    ]
+  },
+];
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+
+let cardState = {}; // cardId → { interval, ef, dueDate, streak }
+const STORAGE_KEY = 'ib_history_cards';
+const TODAY = new Date().toDateString();
+
+async function loadState() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY);
+    if (result && result.value) { cardState = JSON.parse(result.value); return; }
+  } catch(e) {}
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) cardState = JSON.parse(raw);
+  } catch(e) { cardState = {}; }
+}
+
+async function saveState() {
+  const s = JSON.stringify(cardState);
+  try { await window.storage.set(STORAGE_KEY, s); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, s); } catch(e) {}
+}
+
+function getCardState(id) {
+  if (!cardState[id]) cardState[id] = { interval: 1, ef: 2.5, dueDate: TODAY, streak: 0, reviews: 0 };
+  return cardState[id];
+}
+
+function isDue(id) {
+  const s = getCardState(id);
+  return new Date(s.dueDate) <= new Date(TODAY);
+}
+
+function isMastered(id) {
+  const s = getCardState(id);
+  return s.interval >= 21;
+}
+
+// SM-2 algorithm
+function applyRating(id, quality) {
+  const s = getCardState(id);
+  s.reviews = (s.reviews || 0) + 1;
+  if (quality < 2) {
+    // Again
+    s.interval = 1;
+    s.streak = 0;
+  } else {
+    s.streak = (s.streak || 0) + 1;
+    if (s.streak === 1) s.interval = 1;
+    else if (s.streak === 2) s.interval = 6;
+    else s.interval = Math.round(s.interval * s.ef);
+
+    // Update EF
+    s.ef = Math.max(1.3, s.ef + (0.1 - (4 - quality) * (0.08 + (4 - quality) * 0.02)));
+    if (quality >= 4) { s.ef = Math.min(2.7, s.ef + 0.1); s.interval = Math.round(s.interval * 1.3); }
+  }
+
+  const due = new Date();
+  due.setDate(due.getDate() + s.interval);
+  s.dueDate = due.toDateString();
+  cardState[id] = s;
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════
+
+let currentView = 'home';
+let session = { deck: null, queue: [], index: 0, correct: 0, wrong: 0, answered: false };
+
+function cardId(deckId, qi) { return `${deckId}:${qi}`; }
+
+function getAllCards() {
+  const all = [];
+  DECKS.forEach(d => d.cards.forEach((c,i) => all.push({ ...c, deckId: d.id, qi: i, id: cardId(d.id,i) })));
+  return all;
+}
+
+function countDue() { return getAllCards().filter(c => isDue(c.id)).length; }
+function countMastered() { return getAllCards().filter(c => isMastered(c.id)).length; }
+function totalCards() { return getAllCards().length; }
+
+function deckDue(deckId) {
+  const d = DECKS.find(x => x.id === deckId);
+  return d.cards.filter((c,i) => isDue(cardId(deckId,i))).length;
+}
+function deckMastered(deckId) {
+  const d = DECKS.find(x => x.id === deckId);
+  return d.cards.filter((c,i) => isMastered(cardId(deckId,i))).length;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
+  return a;
+}
+
+// ═══════════════════════════════════════════════════
+// VIEWS
+// ═══════════════════════════════════════════════════
+
+function showHome() {
+  currentView = 'home';
+  document.getElementById('home-view').style.display = 'block';
+  document.getElementById('session-view').style.display = 'none';
+  document.getElementById('results-view').style.display = 'none';
+  document.getElementById('back-btn').classList.remove('visible');
+  renderHome();
+}
+
+function renderHome() {
+  document.getElementById('stat-total').textContent = totalCards();
+  document.getElementById('stat-due').textContent = countDue();
+  document.getElementById('stat-mastered').textContent = countMastered();
+
+  const grid = document.getElementById('deck-grid');
+  grid.innerHTML = '';
+
+  DECKS.forEach(deck => {
+    const due = deckDue(deck.id);
+    const mastered = deckMastered(deck.id);
+    const total = deck.cards.length;
+    const pct = Math.round((mastered / total) * 100);
+
+    const div = document.createElement('div');
+    div.className = 'deck-card';
+    div.style.setProperty('--accent', deck.accent);
+    div.onclick = () => startSession(deck.id);
+    div.innerHTML = `
+      ${due > 0 ? `<div class="due-badge">${due} due</div>` : ''}
+      <div class="icon">${deck.icon}</div>
+      <h3>${deck.title}</h3>
+      <p>${deck.desc}</p>
+      <div class="deck-meta">
+        <span class="count">${mastered}/${total} mastered</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function startSession(deckId) {
+  const deck = DECKS.find(d => d.id === deckId);
+  if (!deck) return;
+
+  // Build queue: due cards first, then not-due (up to 20 new per session)
+  let dueCards = deck.cards.map((c,i) => ({...c, id: cardId(deckId,i)})).filter(c => isDue(c.id));
+  let newCards = deck.cards.map((c,i) => ({...c, id: cardId(deckId,i)})).filter(c => !isDue(c.id)).slice(0, Math.max(0, 10 - dueCards.length));
+
+  let queue = shuffle(dueCards);
+  if (queue.length === 0) queue = shuffle(newCards).slice(0, 10);
+
+  if (queue.length === 0) {
+    // All mastered — show all
+    queue = shuffle(deck.cards.map((c,i) => ({...c, id: cardId(deckId,i)}))).slice(0, 10);
+  }
+
+  session = { deck, queue, index: 0, correct: 0, wrong: 0, answered: false };
+
+  document.getElementById('home-view').style.display = 'none';
+  document.getElementById('results-view').style.display = 'none';
+  document.getElementById('session-view').style.display = 'block';
+  document.getElementById('back-btn').classList.add('visible');
+
+  const h = document.getElementById('session-title');
+  h.textContent = deck.title;
+  h.style.color = deck.accent;
+
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const { queue, index } = session;
+  if (index >= queue.length) { showResults(); return; }
+
+  const card = queue[index];
+  session.answered = false;
+
+  const total = queue.length;
+  const pct = Math.round((index / total) * 100);
+  document.getElementById('session-progress-fill').style.width = pct + '%';
+  document.getElementById('session-count').textContent = `${index + 1} / ${total}`;
+
+  document.getElementById('q-tag').textContent = card.tag || '';
+  document.getElementById('q-text').textContent = card.q;
+  document.getElementById('q-hint').textContent = '';
+
+  // Reset all answer UI
+  document.getElementById('feedback-box').style.display = 'none';
+  document.getElementById('feedback-box').className = 'feedback';
+  document.getElementById('sa-loading').classList.remove('visible');
+  document.getElementById('ai-feedback').classList.remove('visible');
+  document.getElementById('ai-feedback').className = 'ai-feedback';
+  ['btn-again','btn-good','btn-easy'].forEach(id => document.getElementById(id).classList.remove('visible'));
+
+  if (currentMode === 'sa') {
+    document.getElementById('options-grid').style.display = 'none';
+    document.getElementById('sa-wrap').style.display = 'block';
+    const ta = document.getElementById('sa-textarea');
+    ta.value = '';
+    ta.disabled = false;
+    document.getElementById('sa-submit').disabled = false;
+    ta.focus();
+  } else {
+    document.getElementById('options-grid').style.display = 'grid';
+    document.getElementById('sa-wrap').style.display = 'none';
+
+    // Shuffle options
+    const opts = shuffle(card.opts.map((o) => ({ text: o, correct: o === card.a })));
+    const letters = ['A', 'B', 'C', 'D'];
+    const grid = document.getElementById('options-grid');
+    grid.innerHTML = '';
+    opts.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.dataset.correct = opt.correct ? 'true' : 'false';
+      btn.onclick = () => selectAnswer(btn, opt.correct, card);
+      btn.innerHTML = `<span class="option-letter">${letters[i]}</span>${opt.text}`;
+      grid.appendChild(btn);
+    });
+  }
+}
+
+function selectAnswer(btn, isCorrect, card) {
+  if (session.answered) return;
+  session.answered = true;
+
+  const allBtns = document.querySelectorAll('.option-btn');
+  allBtns.forEach(b => {
+    b.disabled = true;
+    if (b.dataset.correct === 'true') b.classList.add('correct');
+  });
+
+  if (!isCorrect) {
+    btn.classList.add('wrong');
+    session.wrong++;
+  } else {
+    btn.classList.add('correct');
+    session.correct++;
+  }
+
+  const fb = document.getElementById('feedback-box');
+  const title = document.getElementById('feedback-title');
+  const text = document.getElementById('feedback-text');
+
+  if (isCorrect) {
+    fb.className = 'feedback correct-fb';
+    title.textContent = '✓ Correct!';
+  } else {
+    fb.className = 'feedback wrong-fb';
+    title.textContent = '✗ Not quite.';
+  }
+  text.textContent = card.explain || '';
+  fb.style.display = 'block';
+
+  ['btn-again','btn-good','btn-easy'].forEach(id => document.getElementById(id).classList.add('visible'));
+}
+
+async function submitShortAnswer() {
+  const card = session.queue[session.index];
+  const userAnswer = document.getElementById('sa-textarea').value.trim();
+  if (!userAnswer) return;
+
+  // Lock input
+  document.getElementById('sa-textarea').disabled = true;
+  document.getElementById('sa-submit').disabled = true;
+  document.getElementById('sa-loading').classList.add('visible');
+  session.answered = true;
+
+  try {
+    const result = await gradeWithAI(card.q, card.a, card.explain, userAnswer);
+
+    document.getElementById('sa-loading').classList.remove('visible');
+
+    const fb = document.getElementById('ai-feedback');
+    const label = document.getElementById('ai-grade-label');
+    const comment = document.getElementById('ai-grade-comment');
+    const modelAns = document.getElementById('ai-model-answer');
+
+    if (result.grade === 'full') {
+      fb.className = 'ai-feedback visible grade-full';
+      label.textContent = '✓ Correct';
+      session.correct++;
+    } else if (result.grade === 'partial') {
+      fb.className = 'ai-feedback visible grade-partial';
+      label.textContent = '◑ Partially Correct';
+      session.wrong++;
+    } else {
+      fb.className = 'ai-feedback visible grade-wrong';
+      label.textContent = '✗ Incorrect';
+      session.wrong++;
+    }
+
+    comment.textContent = result.comment;
+    modelAns.innerHTML = `<strong>Model answer:</strong> ${card.a}<br><br><em>${card.explain}</em>`;
+
+    // Map grade to rating quality
+    const autoQuality = result.grade === 'full' ? 4 : result.grade === 'partial' ? 2 : 0;
+    document.getElementById('btn-again').style.setProperty('display', 'block');
+    document.getElementById('btn-good').style.setProperty('display', 'block');
+    document.getElementById('btn-easy').style.setProperty('display', 'block');
+    ['btn-again','btn-good','btn-easy'].forEach(id => document.getElementById(id).classList.add('visible'));
+
+  } catch(e) {
+    document.getElementById('sa-loading').classList.remove('visible');
+    // Fallback: show model answer, let user self-assess
+    const fb = document.getElementById('ai-feedback');
+    fb.className = 'ai-feedback visible grade-partial';
+    document.getElementById('ai-grade-label').textContent = 'Self-assess';
+    document.getElementById('ai-grade-comment').textContent = 'Could not reach grading service. Compare your answer to the model answer below.';
+    document.getElementById('ai-model-answer').innerHTML = `<strong>Model answer:</strong> ${card.a}<br><br><em>${card.explain}</em>`;
+    ['btn-again','btn-good','btn-easy'].forEach(id => document.getElementById(id).classList.add('visible'));
+  }
+}
+
+async function gradeWithAI(question, modelAnswer, explanation, userAnswer) {
+  const prompt = `You are grading an IB History student's short answer. Be fair but accurate.
+
+QUESTION: ${question}
+MODEL ANSWER: ${modelAnswer}
+EXPLANATION: ${explanation}
+STUDENT'S ANSWER: ${userAnswer}
+
+Grade the student's answer as one of:
+- "full": They got the key point(s) correct, even if phrased differently
+- "partial": They got some of it right but missed important elements
+- "wrong": The answer is incorrect or too vague to be credited
+
+Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
+{"grade":"full","comment":"Your specific feedback in 1-2 sentences."}`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  const data = await response.json();
+  const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  return JSON.parse(text.replace(/```json|```/g, '').trim());
+}
+
+function rate(quality) {
+  const card = session.queue[session.index];
+  applyRating(card.id, quality);
+  session.index++;
+
+  if (session.index >= session.queue.length) {
+    showResults();
+  } else {
+    renderQuestion();
+  }
+}
+
+function showResults() {
+  document.getElementById('session-view').style.display = 'none';
+  document.getElementById('results-view').style.display = 'block';
+
+  const { correct, wrong, deck } = session;
+  const total = correct + wrong;
+  const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+  let icon = '🎯'; let title = 'Good work!'; let sub = 'Keep reviewing to strengthen your memory.';
+  if (pct === 100) { icon = '🏆'; title = 'Perfect!'; sub = 'Outstanding — every card correct. History is your domain.'; }
+  else if (pct >= 80) { icon = '⭐'; title = 'Excellent!'; sub = 'Nearly there. A few more reviews and you\'ll master this.'; }
+  else if (pct >= 50) { icon = '📖'; title = 'Good effort.'; sub = 'You\'re learning. Review the incorrect cards soon.'; }
+  else { icon = '💪'; title = 'Keep going.'; sub = 'Struggling cards will come back sooner for extra practice.'; }
+
+  document.getElementById('result-icon').textContent = icon;
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-sub').textContent = sub;
+  document.getElementById('res-correct').textContent = correct;
+  document.getElementById('res-wrong').textContent = wrong;
+}
+
+// ═══════════════════════════════════════════════════
+// MODE
+// ═══════════════════════════════════════════════════
+
+let currentMode = 'mcq'; // 'mcq' | 'sa'
+
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('mode-mcq').classList.toggle('active', m === 'mcq');
+  document.getElementById('mode-sa').classList.toggle('active', m === 'sa');
+}
+
+async function confirmReset() {
+  if (!confirm('Reset all progress? This cannot be undone.')) return;
+  cardState = {};
+  try { await window.storage.delete(STORAGE_KEY); } catch(e) {}
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  showHome();
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+
+loadState().then(() => showHome());
+</script>
+</body>
+</html>
